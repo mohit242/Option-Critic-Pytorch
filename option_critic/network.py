@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import torch.functional as F
 import numpy as np
 from torch.distributions import Normal
 # Adapted from ShantongZhang/DeepRL
@@ -76,30 +77,21 @@ class VanillaNet(nn.Module):
         return y
 
 
-class GaussianPolicyNet(nn.Module):
-    def __init__(self, output_dim, body):
+class PolicyNet(nn.Module):
+    def __init__(self, num_options, num_actions, body):
         super().__init__()
-        self.fc_mean = layer_init(nn.Linear(body.feature_dim, output_dim))
-        self.fc_log_std = layer_init(nn.Linear(body.feature_dim, output_dim))
+        self.fc_pi = layer_init(nn.Linear(body.feature_dim, num_actions*num_options))
+        self.fc_term = layer_init(nn.Linear(body.feature_dim, num_options))
         self.body = body
 
     def forward(self, x):
         phi = self.body(tensor(x))
-        mean = self.fc_mean(phi)
-        log_std = self.fc_log_std(phi)
-        log_std = torch.clamp(log_std, min=MIN_LOG_STD, max=MAX_LOG_STD)
-        return mean, log_std
+        action_probs = F.softmax(self.fc_pi(phi), dim=-1)
+        termination_probs = F.sigmoid(self.fc_term(phi))
+        log_probs = torch.log(action_probs)
 
-    def sample(self, state):
-        mean, log_std = self.forward(tensor(state))
-        std = log_std.exp()
-        normal = Normal(mean, std)
-        a_t = normal.rsample()
-        action = torch.tanh(a_t)
-        log_prob = normal.log_prob(a_t)
-        log_prob -= torch.log(1 - action.pow(2) + EPSILON)
-        log_prob = log_prob.sum(1, keepdim=True)
-        return action, log_prob, torch.tanh(mean)
+        return action_probs, log_probs, termination_probs
+
 
 
 if __name__ == "__main__":
