@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
-import torch.functional as F
+import torch.nn.functional as F
 import numpy as np
-from torch.distributions import Normal
 # Adapted from ShantongZhang/DeepRL
 
 DEVICE = torch.device('cpu')
@@ -47,7 +46,7 @@ def tensor(x):
 
 
 class FCBody(nn.Module):
-    def __init__(self, input_dim, hidden_units=(64, 64), gate=nn.ReLU()):
+    def __init__(self, input_dim, hidden_units=[64, 64], gate=nn.ReLU()):
         super().__init__()
         dims = [input_dim,] + hidden_units
         fc_func = lambda dim_in, dim_out: nn.Linear(dim_in, dim_out)
@@ -83,18 +82,12 @@ class PolicyNet(nn.Module):
         self.fc_pi = layer_init(nn.Linear(body.feature_dim, num_actions*num_options))
         self.fc_term = layer_init(nn.Linear(body.feature_dim, num_options))
         self.body = body
+        self.num_options = num_options
 
     def forward(self, x):
         phi = self.body(tensor(x))
-        action_probs = F.softmax(self.fc_pi(phi), dim=-1)
+        action_probs = F.softmax(self.fc_pi(phi).view(self.num_options, -1), dim=-1)
         termination_probs = F.sigmoid(self.fc_term(phi))
         log_probs = torch.log(action_probs)
 
         return action_probs, log_probs, termination_probs
-
-
-
-if __name__ == "__main__":
-    net = FCBody(12)
-    print(net)
-    print(net(torch.Tensor([list(range(12))])))
