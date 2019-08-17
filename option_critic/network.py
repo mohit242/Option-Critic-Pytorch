@@ -41,6 +41,8 @@ def tensor(x):
     if x is None or isinstance(x, torch.Tensor):
         return x
     x = np.asarray(x, dtype=np.float)
+    if x.shape == ():
+        x = x.reshape((1,))
     x = torch.tensor(x, device=DEVICE, dtype=torch.float32)
     return x
 
@@ -81,13 +83,17 @@ class PolicyNet(nn.Module):
         super().__init__()
         self.fc_pi = layer_init(nn.Linear(body.feature_dim, num_actions*num_options))
         self.fc_term = layer_init(nn.Linear(body.feature_dim, num_options))
+        self.fc_qu = layer_init(nn.Linear(body.feature_dim, num_actions*num_options))
         self.body = body
         self.num_options = num_options
+        self.num_actions = num_actions
 
     def forward(self, x):
         phi = self.body(tensor(x))
-        action_probs = F.softmax(self.fc_pi(phi).view(self.num_options, -1), dim=-1)
-        termination_probs = F.sigmoid(self.fc_term(phi))
+        action_probs = F.softmax(self.fc_pi(phi).view(-1, self.num_options, self.num_actions), dim=-1)
+        termination_probs = F.sigmoid(self.fc_term(phi)).view(-1, self.num_options)
+        q_u = self.fc_qu(phi).view(-1, self.num_options, self.num_actions)
+        q_omega = (q_u * action_probs).sum(dim=-1)
         log_probs = torch.log(action_probs)
-
-        return action_probs, log_probs, termination_probs
+        # print(action_probs.size(), log_probs.size(), termination_probs.size(), q_u.size(), q_omega.size())
+        return action_probs, log_probs, termination_probs, q_u, q_omega
