@@ -29,4 +29,27 @@ class ActionSACWrapper(gym.ActionWrapper):
         return action
 
 
+class DiscreteToBox(gym.ObservationWrapper):
+
+    def __init__(self, env: gym.Env):
+        """Converts discrete observation to one-hot box observation"""
+        super().__init__(env)
+        self.observation_space = gym.spaces.Box(0, 1, (env.observation_space.n, ))
+        self._observation_map = np.eye(env.observation_space.n)
+
+    def observation(self, observation):
+        obs = tuple(self._observation_map[observation])
+        return obs
+
+
+def create_obs_wrapper(n):
+    _obs_map = np.eye(n)
+
+    def _obs_wrapper(obs):
+        return _obs_map[obs]
+
+    return _obs_wrapper
+
+
+
 

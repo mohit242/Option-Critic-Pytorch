@@ -4,12 +4,13 @@ import gym
 
 if __name__=="__main__":
 
-    env = gym.make("MountainCar-v0")
-    policy = option_critic.network.PolicyNet(2, env.action_space.n,
-                                             option_critic.network.FCBody(env.observation_space.shape[0]))
+    env = gym.make("Taxi-v2")
+    if isinstance(env.observation_space, gym.spaces.Discrete):
+        env = option_critic.DiscreteToBox(env)
+    input_dim = env.observation_space.shape[0]
+    policy = option_critic.network.PolicyNet(4, env.action_space.n,
+                                             option_critic.network.FCBody(input_dim))
 
-    critic = option_critic.network.VanillaNet(2, option_critic.network.FCBody(env.observation_space.shape[0]))
+    agent = option_critic.OptionCritic(env, policy, start_steps=10000)
 
-    agent = option_critic.OptionCritic(env, policy, critic)
-
-    agent.learn(100)
+    agent.learn(100000)
