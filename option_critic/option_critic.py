@@ -14,8 +14,8 @@ from .utils import *
 class OptionCritic:
 
     def __init__(self, env: gym.Env, policy: nn.Module, log_dir="runs", start_steps=10000,
-                 train_after_steps=1, gradient_steps=1, epsilon=1.0, epsilon_decay=1e-4, epsilon_min=0.01, gradient_clip=1, gamma=0.99, minibatch_size=64,
-                 buffer_size=10e4, polyak=0.001, max_eps_len=10e4, lr=3e-4, qloss_func=nn.MSELoss()):
+                 train_after_steps=1, gradient_steps=1, epsilon=1.0, epsilon_decay=1e-4, epsilon_min=0.01, gradient_clip=1, gamma=0.99, minibatch_size=256,
+                 buffer_size=10e5, polyak=0.001, max_eps_len=10e4, lr=3e-3):
         self.env = env
         self.policy = policy
         self.writer = SummaryWriter(log_dir=log_dir)
@@ -30,7 +30,6 @@ class OptionCritic:
         self.polyak = polyak
         self.max_eps_len = max_eps_len
         self.lr = lr
-        self.qloss_func = qloss_func
 
         self.state = env.reset()
         self.current_option = None
@@ -100,7 +99,10 @@ class OptionCritic:
             mask[i, j, k] = True
         q_loss = torch.pow(q_u.masked_select(mask) - target.squeeze(-1).detach(), 2)
 
-        policy_loss = log_probs.masked_select(mask) * q_u.masked_select(mask).detach()
+        entropy = Categorical(probs=action_probs).entropy().gather(1, torch.tensor(options).view(-1, 1))
+        entropy = entropy.squeeze(-1) - entropy.mean()
+        entropy = 0
+        policy_loss = -log_probs.masked_select(mask) * (q_u.masked_select(mask).detach() + 0.01 * entropy)
 
         termination_mask = tensor(options == previous_options).float()
         termination_mask.requires_grad = False
@@ -109,6 +111,7 @@ class OptionCritic:
         termination_loss = termination_loss.view(-1) * termination_mask
         # print(q_loss.size(), termination_loss.size(), policy_loss.size())
         total_loss = (q_loss + termination_loss + policy_loss).mean()
+        # print(total_loss)
 
         self.policy_opt.zero_grad()
         total_loss.backward()

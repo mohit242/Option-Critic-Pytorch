@@ -62,6 +62,7 @@ class FCBody(nn.Module):
     def forward(self, x, action=None):
         if action is not None:
             x = torch.cat([x, action], dim=1)
+        # print(self.net[0].state_dict())
         return self.net(x)
 
 

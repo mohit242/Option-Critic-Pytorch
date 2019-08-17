@@ -1,6 +1,7 @@
 import torch
 import numpy as np
 import gym
+from functools import reduce
 
 
 def soft_update(target, source, polyak=0.001):
@@ -42,14 +43,17 @@ class DiscreteToBox(gym.ObservationWrapper):
         return obs
 
 
-def create_obs_wrapper(n):
-    _obs_map = np.eye(n)
+class FlattenArrayObservation(gym.ObservationWrapper):
 
-    def _obs_wrapper(obs):
-        return _obs_map[obs]
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+        image_space = env.observation_space.spaces['image']
+        img_len = reduce(lambda x, y: x*y, image_space.shape)
+        self.observation_space = gym.spaces.Box(0, 1, (img_len, ))
 
-    return _obs_wrapper
-
-
+    def observation(self, observation):
+        obs = observation['image'].flatten().astype(np.float)
+        obs /= 255
+        return obs
 
 
